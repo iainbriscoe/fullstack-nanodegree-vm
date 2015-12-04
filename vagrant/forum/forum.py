@@ -42,7 +42,7 @@ HTML_WRAP = '''\
 POST = '''\
     <div class=post><em class=date>%(time)s</em><br>%(content)s</div>
 '''
-
+'
 ## Request handler for main page
 def View(env, resp):
     '''View is the 'main page' of the forum.

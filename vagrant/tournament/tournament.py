@@ -4,7 +4,7 @@
 #
 
 import psycopg2
-
+import bleach
 
 def connect():
     """Connect to the PostgreSQL database.  Returns a database connection."""
@@ -13,15 +13,33 @@ def connect():
 
 def deleteMatches():
     """Remove all the match records from the database."""
-
+    DB = connect()
+    c = DB.cursor()
+    #deletes the contents of table matches
+    c.execute("DELETE FROM matches;")
+    DB.commit()
+    DB.close()
 
 def deletePlayers():
     """Remove all the player records from the database."""
-
+    DB = connect()
+    c = DB.cursor()
+    #deltes the contents of table players
+    c.execute("DELETE FROM players;")
+    DB.commit()
+    DB.close()
 
 def countPlayers():
     """Returns the number of players currently registered."""
-
+    DB = connect()
+    c = DB.cursor()
+    #gets the player column from the players table
+    c.execute("SELECT COUNT(player) FROM players;")
+    DB.commit()
+    #gets the result of the select statement
+    count = c.fetchone()[0]
+    DB.close()
+    return count
 
 def registerPlayer(name):
     """Adds a player to the tournament database.
@@ -32,7 +50,12 @@ def registerPlayer(name):
     Args:
       name: the player's full name (need not be unique).
     """
-
+    DB = connect()
+    c = DB.cursor()
+    #inserts a new player into the players table, bleach cleans the input to avoid attack 
+    c.execute("INSERT INTO players (player) VALUES (%s)", (bleach.clean(name), ))
+    DB.commit()
+    DB.close()
 
 def playerStandings():
     """Returns a list of the players and their win records, sorted by wins.
@@ -47,6 +70,15 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
+    DB = connect()
+    c = DB.cursor()
+    #gets id, player, wins and matches ordered by most wins
+    c.execute("select id, player, wins, matches FROM players order by wins desc")
+    #collects the select rows into a list
+    playersList = list(c.fetchall())
+    DB.commit()
+    DB.close()
+    return playersList
 
 
 def reportMatch(winner, loser):
@@ -56,7 +88,14 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
- 
+    DB = connect()
+    c = DB.cursor()
+    #updates number of wins and the number of matches played for the winner
+    c.execute("UPDATE players SET wins = wins + 1, matches = matches +1 WHERE id = (%s)", (bleach.clean(winner), ))
+    #updates the number of matches for the loser
+    c.execute("UPDATE players SET matches = matches + 1 WHERE id = (%s)", (bleach.clean(loser), ))
+    DB.commit()
+    DB.close()
  
 def swissPairings():
     """Returns a list of pairs of players for the next round of a match.
@@ -73,5 +112,29 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
+    DB = connect()
+    c = DB.cursor()
+    #selects the two highest scoring players
+    c.execute("SELECT id, player FROM players ORDER BY wins DESC LIMIT 2")
+    row = c.fetchone()
+    tuple1 = ()
+    #collects both players data into one tuple
+    while row is not None:
+      tuple1 = tuple1 + row
+      row = c.fetchone()
+    #collects players place 3 and 4 
+    c.execute("SELECT id, player FROM players ORDER BY wins DESC LIMIT 2 OFFSET 2")
+    row = c.fetchone()
+    tuple2 = ()
+    #collects both players data into on tuple
+    while row is not None:
+      tuple2 = tuple2 + row
+      row = c.fetchone()
 
-
+    #adds both tuples into a list
+    playersList = list()
+    playersList.append(tuple1)
+    playersList.append(tuple2)
+    DB.commit()
+    DB.close()
+    return playersList
