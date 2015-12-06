@@ -10,12 +10,10 @@
 DROP TABLE IF EXISTS players, matches;
 
 -- create a players table with autoincrementing id, player name, and wins and matches with both default at 0 
-CREATE TABLE players ( 	id SERIAL ,
+CREATE TABLE players ( 	id SERIAL PRIMARY KEY,
 						player TEXT, 
 						wins int default 0,
 						matches int default 0); 
---create a matches table that include match number, roundnumber, player 1 and player 2 
-CREATE TABLE matches ( match_number int, 
-						round_number int,
-						player_one TEXT,
-						player_two TEXT );
+--create a matches table that includes the winner and loser
+CREATE TABLE matches ( winner TEXT,
+						loser TEXT );

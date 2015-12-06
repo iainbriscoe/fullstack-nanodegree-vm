@@ -13,32 +13,23 @@ def connect():
 
 def deleteMatches():
     """Remove all the match records from the database."""
-    DB = connect()
-    c = DB.cursor()
     #deletes the contents of table matches
-    c.execute("DELETE FROM matches;")
-    DB.commit()
-    DB.close()
+    DB().execute("DELETE FROM matches", True)
+
 
 def deletePlayers():
     """Remove all the player records from the database."""
-    DB = connect()
-    c = DB.cursor()
-    #deltes the contents of table players
-    c.execute("DELETE FROM players;")
-    DB.commit()
-    DB.close()
+    #deletes the contents of table players
+    DB().execute("DELETE FROM players", True)
+
 
 def countPlayers():
     """Returns the number of players currently registered."""
-    DB = connect()
-    c = DB.cursor()
     #gets the player column from the players table
-    c.execute("SELECT COUNT(player) FROM players;")
-    DB.commit()
+    conn = DB().execute("SELECT COUNT(player) FROM players;")
     #gets the result of the select statement
-    count = c.fetchone()[0]
-    DB.close()
+    count = conn["cursor"].fetchone()[0]
+    conn["cursor"].close()
     return count
 
 def registerPlayer(name):
@@ -70,14 +61,13 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-    DB = connect()
-    c = DB.cursor()
     #gets id, player, wins and matches ordered by most wins
-    c.execute("select id, player, wins, matches FROM players order by wins desc")
+    conn = DB().execute("select id, player, wins, matches FROM players order by wins desc")
+    #conn = DB().execute("SELECT id FROM players UNION SELECT player FROM players UNION SELECT COUNT(winner) as winners FROM matches GROUP BY winner UNION SELECT SUM(COUNT(loser),winners) as losers FROM matches GROUP BY loser")
+    #conn = DB().execute("SELECT players.id, players.player, count(matches.winner) AS winners, count(matches.loser) + winners AS total_matches FROM players JOIN matches ON players.player=matches.winner=matches.loser")
     #collects the select rows into a list
-    playersList = list(c.fetchall())
-    DB.commit()
-    DB.close()
+    playersList = list(conn["cursor"].fetchall())
+    conn["cursor"].close()
     return playersList
 
 
@@ -94,47 +84,53 @@ def reportMatch(winner, loser):
     c.execute("UPDATE players SET wins = wins + 1, matches = matches +1 WHERE id = (%s)", (bleach.clean(winner), ))
     #updates the number of matches for the loser
     c.execute("UPDATE players SET matches = matches + 1 WHERE id = (%s)", (bleach.clean(loser), ))
+    #add a match to matches table
+    c.execute("UPDATE matches SET winner = (%s), loser = (%s)", (bleach.clean(winner), bleach.clean(loser)))
     DB.commit()
     DB.close()
- 
-def swissPairings():
-    """Returns a list of pairs of players for the next round of a match.
-  
-    Assuming that there are an even number of players registered, each player
-    appears exactly once in the pairings.  Each player is paired with another
-    player with an equal or nearly-equal win record, that is, a player adjacent
-    to him or her in the standings.
-  
-    Returns:
-      A list of tuples, each of which contains (id1, name1, id2, name2)
-        id1: the first player's unique id
-        name1: the first player's name
-        id2: the second player's unique id
-        name2: the second player's name
-    """
-    DB = connect()
-    c = DB.cursor()
-    #selects the two highest scoring players
-    c.execute("SELECT id, player FROM players ORDER BY wins DESC LIMIT 2")
-    row = c.fetchone()
-    tuple1 = ()
-    #collects both players data into one tuple
-    while row is not None:
-      tuple1 = tuple1 + row
-      row = c.fetchone()
-    #collects players place 3 and 4 
-    c.execute("SELECT id, player FROM players ORDER BY wins DESC LIMIT 2 OFFSET 2")
-    row = c.fetchone()
-    tuple2 = ()
-    #collects both players data into on tuple
-    while row is not None:
-      tuple2 = tuple2 + row
-      row = c.fetchone()
 
-    #adds both tuples into a list
+
+
+
+def swissPairings():
+    #fetch entire table
+    conn = DB().execute("SELECT id, player FROM players ORDER BY wins")
     playersList = list()
-    playersList.append(tuple1)
-    playersList.append(tuple2)
-    DB.commit()
-    DB.close()
+    row = conn["cursor"].fetchone()
+    while row is not None:
+        aTuple = ()
+        count = 0
+        #build tuples of matches
+        while count < 2:
+            aTuple = aTuple + row
+            row = conn["cursor"].fetchone()
+            count = count + 1 
+        playersList.append(aTuple)
+    conn["cursor"].close()
     return playersList
+
+
+
+
+class DB:
+    def __init__(self, connectionString="dbname=tournament"):
+
+        self.conn = psycopg2.connect(connectionString)
+
+    def cursor(self):
+
+        return self.conn.cursor();
+
+    def execute(self, queryString, closeCall=False):
+
+        cursor = self.cursor()
+        cursor.execute(queryString)
+        if closeCall:
+            self.conn.commit()
+            self.close()
+        return {"connect": self.conn, "cursor": cursor if not closeCall else None}
+
+    def close(self):
+
+        return self.conn.close()
+    
